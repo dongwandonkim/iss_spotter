@@ -35,9 +35,59 @@ const fetchCoordsByIP = (ip, cb) => {
       return;
     }
 
-    const {latidude, longitude} = JSON.parse(body);
-    cb(null, {latidude, longitude});
+    const {latitude, longitude} = JSON.parse(body);
+    cb(null, {latitude, longitude});
   });
 };
 
-module.exports = {fetchMyIP, fetchCoordsByIP};
+// https://iss-pass.herokuapp.com/json/?lat=YOUR_LAT_INPUT_HERE&lon=YOUR_LON_INPUT_HERE
+
+/**
+ * Makes a single API request to retrieve upcoming ISS fly over times the for the given lat/lng coordinates.
+ * Input:
+ *   - An object with keys `latitude` and `longitude`
+ *   - A callback (to pass back an error or the array of resulting data)
+ * Returns (via Callback):
+ *   - An error, if any (nullable)
+ *   - The fly over times as an array of objects (null if error). Example:
+ *     [ { risetime: 134564234, duration: 600 }, ... ]
+ */
+const fetchISSFlyOverTimes = function (coords, cb) {
+  const {latitude, longitude} = coords;
+
+  request.get(
+    `https://iss-pass.herokuapp.com/json/?lat=${latitude}&lon=${longitude}`,
+    (err, res, body) => {
+      if (err) return cb(err, null);
+
+      // if non-200 status, assume server error
+      if (res.statusCode !== 200) {
+        const msg = `Status Code ${res.statusCode} when fetching  ISS Fly over time for your coordinates. Response: ${body}`;
+        cb(Error(msg), null);
+        return;
+      }
+
+      const {response} = JSON.parse(body);
+      cb(null, response);
+    }
+  );
+};
+
+const nextISSTimesForMyLocation = (cb) => {
+  fetchMyIP((err, ip) => {
+    if (err) return cb(err, null);
+
+    fetchCoordsByIP(ip, (err, coords) => {
+      if (err) return cb(err, null);
+
+      fetchISSFlyOverTimes(coords, (err, times) => {
+        if (err) return cb(err, null);
+        cb(null, times);
+      });
+    });
+  });
+};
+
+module.exports = {
+  nextISSTimesForMyLocation,
+};
